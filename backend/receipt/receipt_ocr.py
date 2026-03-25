@@ -3,6 +3,9 @@ from typing import List, Union
 from PIL import Image
 import numpy as np
 import cv2
+import easyocr
+
+_reader = easyocr.Reader(['en'], gpu=False)   # Set gpu=True if you have CUDA
 
 class HashableNdArray:
     def __init__(self, arr: np.ndarray):
@@ -171,31 +174,104 @@ def _frames_transform(frames: Union[List[Image.Image], List[np.ndarray]]) -> Lis
     
     return transformed_frames
 
-def _align_frames(frames: List[Image.Image]) -> List[Image.Image]:
+def _align_frames(frames: List[np.ndarray]) -> List[np.ndarray]:
     """
-    Match features between frames, warp into same coordinate
-    space using OpenCV:
-        * ORB/SIFT feature matching
-        * Homography alignment
+    Aligns a list of frames to the first frame using feature matching and homography.
     
-    :param frames: Frames to be aligned
-    :return: Aligned frames
-    :type frames: List[Image.Image]
+    Uses ORB (fast + good enough for most cases) with RANSAC homography.
+    Returns all frames warped into the coordinate space of the first frame.
+    
+    Good for stabilizing video frames, aligning scanned pages, or multi-shot document photos.
     """
-    pass
+    if not frames:
+        return []
+    if len(frames) == 1:
+        return frames[:]
 
-def _multi_frame_averaging(frames: List[Image.Image]) -> Image.Image:
+    # Convert first frame (reference) to grayscale
+    ref = frames[0]
+    ref_gray = cv2.cvtColor(ref, cv2.COLOR_BGR2GRAY)
+
+    # Initialize ORB detector + Brute Force matcher
+    orb = cv2.ORB_create(nfeatures=2000, scaleFactor=1.2, nlevels=8)
+    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+
+    aligned_frames: List[Image.Image] = [frames[0]]  # first frame stays unchanged
+
+    for i in range(1, len(frames)):
+        curr_pil = frames[i].convert('RGB')
+        curr_cv = cv2.cvtColor(np.array(curr_pil), cv2.COLOR_RGB2BGR)
+        curr_gray = cv2.cvtColor(curr_cv, cv2.COLOR_BGR2GRAY)
+
+        # Detect keypoints and descriptors
+        kp1, des1 = orb.detectAndCompute(ref_gray, None)
+        kp2, des2 = orb.detectAndCompute(curr_gray, None)
+
+        if des1 is None or des2 is None or len(des1) < 10 or len(des2) < 10:
+            # Not enough features → keep original frame
+            aligned_frames.append(frames[i])
+            continue
+
+        # Match descriptors
+        matches = bf.match(des1, des2)
+        matches = sorted(matches, key=lambda x: x.distance)
+
+        # Keep only good matches (top 20% or at least 50)
+        good_matches = matches[:max(50, len(matches) // 5)]
+
+        if len(good_matches) < 20:   # minimum reliable matches
+            aligned_frames.append(frames[i])
+            continue
+
+        # Extract matched point coordinates
+        src_pts = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+        dst_pts = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+
+        # Find homography (RANSAC is very important for robustness)
+        H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, ransacReprojThreshold=5.0)
+
+        if H is None:
+            aligned_frames.append(frames[i])
+            continue
+
+        # Warp current frame to reference frame's coordinate space
+        height, width = ref_gray.shape
+        aligned_cv = cv2.warpPerspective(curr_cv, H, (width, height))
+
+        aligned_frames.append(aligned_cv)
+
+    return aligned_frames
+
+def _multi_frame_averaging(frames: List[np.ndarray]) -> Image.Image:
     """
-    Enhance final OCR image by aligning the frames and taking
-    the pixel-wise average with OpenCV.
+    Enhances the final image by:
+      1. Aligning all frames to the first frame (using feature matching + homography)
+      2. Taking the pixel-wise average (reduces noise, improves clarity for OCR)
     
-    :param frames: Frames to be averaged into one
-    :type frames: List[Image.Image]
-    :return: Resulting Image.Image from frame averaging
-    :rtype: Image.Image
+    This is especially powerful for scanned documents, photos of text taken with a phone,
+    or any situation with slight movement/shake between frames.
+
+    [NEEDS VERIFICATION]
     """
-    
-    pass
+    if not frames:
+        raise ValueError("No frames provided for averaging")
+    if len(frames) == 1:
+        return frames[0].copy()
+
+    # Step 1: Align all frames to the first one
+    aligned_frames = _align_frames(frames)   # Reuse the function you already have
+
+    # Step 2: Convert all aligned frames to numpy arrays (float32 for averaging)
+    np_frames = frames
+
+    # Step 3: Compute pixel-wise average
+    avg_float = np.mean(np_frames, axis=0).astype(np.uint8)
+
+    # Convert back to PIL Image
+    avg_bgr = avg_float
+    avg_rgb = cv2.cvtColor(avg_bgr, cv2.COLOR_BGR2RGB)
+    result_pil = Image.fromarray(avg_rgb)
+    return result_pil
 
 def _classic_ocr_preprocessing(frame: Image.Image) -> Image.Image:
     """
@@ -227,17 +303,52 @@ def _classic_ocr_preprocessing(frame: Image.Image) -> Image.Image:
                        [-1,-1,-1]])
     ppframe = cv2.filter2D(ppframe, -1, _kernel)
     return ppframe
-def _easyocr(frame: List[Image.Image]) -> List[str]:
+
+def _easyocr(frames: List[Image.Image]) -> List[List[str]]:
     """
-    Perform OCR on frame.
+    Perform OCR on each frame using EasyOCR.
     
-        orig_h, orig_w = frame.shape
-    :param frame: Frame to be OCRed
-    :type frame: List[Image.Image]
-    :return: Tuple[List of text strings from OCR processing, confidence]
-    :rtype: List[str]
+    Returns:
+        List[List[str]]: For each input frame, a list of recognized text strings
+                         (one string per detected text box, in reading order).
+    
+    Optimized for document-style text (after your perspective transform + averaging).
     """
-    pass
+    if not frames:
+        return []
+
+    results: List[List[str]] = []
+
+    for frame in frames:
+        gray = _classic_ocr_preprocessing(frame)
+        # Mild contrast stretch (helps with faded text)
+        gray = cv2.equalizeHist(gray) if np.std(gray) < 60 else gray
+
+        # Run EasyOCR
+        # detail=0 returns only the text strings (no bbox/confidence)
+        # paragraph=True merges text into natural reading order (recommended for documents)
+        text_list = _reader.readtext(
+            gray,                   # or img if you want color
+            detail=0,               # 0 = text only (fast & simple)
+            paragraph=True,         # merges lines into coherent blocks
+            text_threshold=0.6,
+            low_text=0.3,
+            width_ths=0.7,          # helps merge words in same line
+            height_ths=0.7,
+            min_size=10,
+            rotation_info=None      # set to [90, 180, 270] if orientation unknown
+        )
+
+        # Fallback: if paragraph mode gives poor results, try without
+        if not text_list and len(gray) > 100:
+            text_list = _reader.readtext(
+                gray, detail=0, paragraph=False,
+                text_threshold=0.5
+            )
+
+        results.append(text_list)
+
+    return results
 
 def _load_images(path, file_type):
     import glob
@@ -258,7 +369,11 @@ def test():
     cv2.waitKey()
     _frames_flat = _frames_transform(_frame_sel)
     print(_frames_flat)
-    cv2.imshow('flattened best frame (roi)', _frames_flat[0])
+    cv2.imshow('flattened frame (roi)', _frames_flat[0])
+    _frames_aligned = _align_frames(_frames_flat)
+    cv2.imshow('flattened aligned frame', _frames_aligned[0])
+    _frames_averaged = _multi_frame_averaging(_frames_aligned)
+    cv2.imshow('flattened aligned averaged frame', _frames_averaged[0])
     cv2.waitKey()
 
 test()
