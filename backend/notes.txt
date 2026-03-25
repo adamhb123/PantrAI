@@ -1,0 +1,9 @@
+[EASY OCR]
+For very high accuracy on clean documents:
+Add decoder='beamsearch' or increase text_threshold=0.7.
+If text is rotated:
+Change to rotation_info=[90, 180, 270].
+To also get confidence scores (useful for filtering):
+Set detail=1 and change return type to List[List[tuple]] (bbox, text, conf).
+Multiple languages:
+Change reader to easyocr.Reader(['en', 'es']).
