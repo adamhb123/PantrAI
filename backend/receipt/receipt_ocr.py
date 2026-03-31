@@ -40,7 +40,7 @@ def _frames_select(frames: List[np.ndarray], pct_output_frames: float = 0.5) -> 
     print(f"_frames_select(): selecting {_n_output_frames} frames")
     frames_metadata = {}
     for frame in frames:
-        gray = frame
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         blur_variance = cv2.Laplacian(gray, cv2.CV_64F).var() # higher = less blurry
         contrast_score = gray.std() # higher = more contrast
         brightness_score = cv2.mean(gray)[0] # higher = brighter
@@ -88,7 +88,7 @@ def _frames_transform(frames: Union[List[np.ndarray], List[np.ndarray]]) -> List
         frame_cv = frame.copy()
         orig_h, orig_w = frame_cv.shape[:2]
         # Preprocessing
-        gray = frame_cv
+        gray = cv2.cvtColor(frame_cv, cv2.COLOR_BGR2GRAY)
         blurred = cv2.GaussianBlur(gray, (5, 5), 0)
         edged = cv2.Canny(blurred, 30, 200)
         
@@ -292,32 +292,43 @@ def _classic_ocr_preprocessing(frames: List[np.ndarray]) -> List[np.ndarray]:
     """
     ppframes = []
     for frame in frames:
-        _block_size = 3 # size of neighborhood; must be odd number
-        _bias: float = 1 # subtracted from the mean/weighted mean to fine-tune (=C)
-        # Adaptive thresholding (contrast)
-        ppframe = cv2.adaptiveThreshold(frame,
+        # Sharpen before thresholding (on grayscale)
+        _kc = 9 # kernel center
+        _kernel = np.array([[-1,-1,-1],
+                        [-1, _kc,-1],
+                        [-1,-1,-1]])
+        ppframe = cv2.filter2D(frame, -1, _kernel)
+        # Adaptive thresholding — block size must be large enough to cover a character
+        _block_size = 15 # size of neighborhood; must be odd number
+        _bias: float = 10 # subtracted from the mean/weighted mean to fine-tune (=C)
+        ppframe = cv2.adaptiveThreshold(ppframe,
                                         255,
                                         cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                         cv2.THRESH_BINARY,
                                         _block_size,
                                         _bias)
-        # Sharpen
-        _kc = 9 # kernel center
-        _kernel = np.array([[-1,-1,-1],
-                        [-1, _kc,-1],
-                        [-1,-1,-1]])
-        ppframe = cv2.filter2D(ppframe, -1, _kernel)
         ppframes.append(ppframe)
     return ppframes
 
+def _make_label(n: int) -> str:
+    """Convert 0-based index to spreadsheet-style label: 0→A, 25→Z, 26→AA, ..."""
+    label = ""
+    n += 1
+    while n > 0:
+        n, rem = divmod(n - 1, 26)
+        label = chr(65 + rem) + label
+    return label
+
+
 class OCRResult:
-    def __init__(self, text: str, confidence: float, bbox: list):
+    def __init__(self, text: str, confidence: float, bbox: list, label: str = ""):
         self.text = text
         self.confidence = confidence
         self.bbox = bbox  # [[x1,y1],[x2,y2],[x3,y3],[x4,y4]]
+        self.label = label
 
     def __repr__(self):
-        return f"OCRResult(text={self.text!r}, conf={self.confidence:.2f})"
+        return f"[{self.label}] ({self.confidence:.2f}) {self.text}"
 
 
 def _easyocr(frames: List[np.ndarray]) -> List[List[OCRResult]]:
@@ -337,14 +348,10 @@ def _easyocr(frames: List[np.ndarray]) -> List[List[OCRResult]]:
     results: List[List[OCRResult]] = []
 
     for frame in frames:
-        gray = frame
-        # Mild contrast stretch (helps with faded text)
-        gray = cv2.equalizeHist(gray) if np.std(gray) < 60 else gray
-
         # detail=1 returns (bbox, text, confidence) per detection
         # paragraph=True omits confidence, so we use paragraph=False
         detections = _reader.readtext(
-            gray,
+            frame,
             detail=1,
             paragraph=False,
             text_threshold=0.6,
@@ -356,13 +363,16 @@ def _easyocr(frames: List[np.ndarray]) -> List[List[OCRResult]]:
         )
 
         # Fallback: if no detections, retry with lower threshold
-        if not detections and len(gray) > 100:
+        if not detections and frame.shape[0] > 100:
             detections = _reader.readtext(
-                gray, detail=1, paragraph=False,
+                frame, detail=1, paragraph=False,
                 text_threshold=0.5
             )
 
-        results.append([OCRResult(text, conf, bbox) for (bbox, text, conf) in detections])
+        results.append([
+            OCRResult(text, conf, bbox, label=_make_label(j))
+            for j, (bbox, text, conf) in enumerate(detections)
+        ])
 
     return results
 
@@ -375,7 +385,7 @@ def _visualize_ocr(frames: List[np.ndarray], ocr_results: List[List[OCRResult]],
         for r in results:
             pts = np.array(r.bbox, dtype=np.int32)
             cv2.polylines(vis, [pts], isClosed=True, color=(0, 0, 0), thickness=2)
-            label = f"{r.confidence:.2f}"
+            label = f"{r.label} {r.confidence:.2f}"
             x, y = pts[0]
             (lw, lh), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
             cv2.rectangle(vis, (x, y - lh - 8), (x + lw, y), (0, 0, 0), -1)
@@ -384,7 +394,7 @@ def _visualize_ocr(frames: List[np.ndarray], ocr_results: List[List[OCRResult]],
         out_path = os.path.join(output_dir, f"frame_{i:03d}.jpg")
         cv2.imwrite(out_path, vis)
         print(f"Saved {out_path}")
-
+    
 def _load_images(path, file_type):
     import glob
     path = f"{path}/*.{file_type}"
@@ -398,20 +408,18 @@ def _load_images(path, file_type):
 def test():
     frames = _load_images("./test_assets", "jpg")
     print(f"Loaded n={len(frames)} frames")
-    _frames_gray = _frames_to_grayscale(frames)
-    _frame_sel = _frames_select(_frames_gray)
+    _frame_sel = _frames_select(frames)
     print(f"_frames_select() got {len(_frame_sel)} images")
     #cv2.imshow('best frame', _frame_sel[0])
     #cv2.waitKey()
     _frames_flat = _frames_transform(_frame_sel)
-    _frames_pp = _classic_ocr_preprocessing(_frames_flat)
-    print(_frames_pp[0])
     #cv2.imshow('flattened frame (roi)', _frames_flat[0])
     #cv2.waitKey()
-    results = _easyocr(_frames_pp)
-    for result in results:
-        for line in result:
-            print(line)
-    _visualize_ocr(_frames_pp, results)
+    results = _easyocr(_frames_flat)
+    for i, frame_results in enumerate(results):
+        print(f"\n--- Frame {i} ---")
+        for r in frame_results:
+            print(r)
+    _visualize_ocr(_frames_flat, results)
 
 test()
