@@ -23,14 +23,21 @@ Expected JSON response schema:
 
 import base64
 import json
+import os
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Optional
 
+from dotenv import load_dotenv
 from openai import OpenAI
 
-MODEL = "gemma3:12b"
-OLLAMA_BASE_URL = "http://localhost:11434/v1"
+load_dotenv(Path(__file__).parent / "receipt_llm.env")
+
+OLLAMA_BASE_URL   = os.environ["OLLAMA_BASE_URL"]
+OLLAMA_API_KEY    = os.environ["OLLAMA_API_KEY"]
+VISION_MODEL      = os.environ["OLLAMA_VISION_MODEL"]
+TEXT_MODEL        = os.environ["OLLAMA_TEXT_MODEL"]
 
 _SCHEMA = """\
 {
@@ -104,13 +111,13 @@ def _parse_response(raw: str) -> ReceiptResult:
 
 
 def extract_items_llm_only(image_path: str,
-                           model: str = MODEL,
+                           model: str = VISION_MODEL,
                            base_url: str = OLLAMA_BASE_URL) -> ReceiptResult:
     """Send the image directly to a vision LLM. No preprocessing."""
     with open(image_path, "rb") as f:
         b64 = base64.b64encode(f.read()).decode()
 
-    client = OpenAI(base_url=base_url, api_key="ollama")
+    client = OpenAI(base_url=base_url, api_key=OLLAMA_API_KEY)
     response = client.chat.completions.create(
         model=model,
         temperature=0.0,
@@ -126,7 +133,7 @@ def extract_items_llm_only(image_path: str,
 
 
 def extract_items_ocr(image_path: str,
-                      model: str = MODEL,
+                      model: str = TEXT_MODEL,
                       base_url: str = OLLAMA_BASE_URL) -> ReceiptResult:
     """Run OCR pipeline first (deskew + perspective correct), then send text to LLM."""
     from receipt_ocr import _load_images, _frames_select, _frames_transform, _easyocr
@@ -142,7 +149,7 @@ def extract_items_ocr(image_path: str,
         for r in fr.ocr_results
     )
 
-    client = OpenAI(base_url=base_url, api_key="ollama")
+    client = OpenAI(base_url=base_url, api_key=OLLAMA_API_KEY)
     response = client.chat.completions.create(
         model=model,
         temperature=0.0,

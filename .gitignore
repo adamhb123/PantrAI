@@ -2,3 +2,5 @@
 **/test_assets/*
 **/__pycache__/*
 **/.vscode/*
+**/*.env
+!**/*.template.env
