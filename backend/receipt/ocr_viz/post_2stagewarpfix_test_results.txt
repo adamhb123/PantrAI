@@ -1,0 +1,47 @@
+------ Frame 0 ------
+  [A] (0.41) **** Begin sales receiPt reprint
+  [B] (0.71) Wegmans
+  [C] (0.19) day yo gct cus brst!
+  [D] (0.25) 1000_HIGHWAY 36,NoRTH
+  [E] (0.29) HORNELL , NY;14843
+  [F] (0.72) (607 ). 324-0600
+  [G] (0.95) 04/01/26 . . OP#.99516
+  [H] (0.58) WB. BaBA. GHANOUJ
+  [I] (0.78) 3. 49.F
+  [J] (0.25) 2.@.2.99 _
+  [K] (0.34) huMMuS
+  [L] (0.99) 5.98.F
+  [M] (0.69) WB. SESAME_
+  [N] (0.38) 2.@. 2.99_
+  [O] (0.50) PITA. CHIPS;
+  [P] (0.78) 5.98.F
+  [Q] (0.25) WE. SEA SaLT PPCORN.
+  [R] (0.96) 2.99.F
+  [S] (0.98) 0.00
+  [T] (0.42) TaX
+  [U] (0.33) TaX. EXEHPTION.
+  [V] (1.00) 0.00
+  [W] (0.88) 18. 44
+  [X] (0.86) 'BALANCE_
+  [Y] (0.21) CREDIT. Card PurCHASET
+  [Z] (0.01) ACEt: #nrktk*5777
+  [AA] (0.40) auth;
+  [AB] (1.00) 661568
+  [AC] (0.48) RCPT =
+  [AD] (1.00) 45059
+  [AE] (0.22) CODE: . 0oo6. . Approved
+  [AF] (0.67) 18 . 44
+  [AG] (0.28) CREDIT  CARD .
+  [AH] (1.00) 0.00
+  [AI] (0.29) 1/26,02: 56pn.17.45.61.99616
+  [AJ] (0.55) 04/01,
+  [AK] (0.23) Evt
+  [AL] (0.13) qhur "
+  [AM] (0.70) WEG ,
+  [AN] (0.19) ChANGE _
+  [AO] (0.97) Lab
+  [AP] (0.20) Castle
+  [AQ] (0.90) best!
+  [AR] (0.50) wee KS
+  [AS] (0.19) VQqan
+  [AT] (0.06) KX

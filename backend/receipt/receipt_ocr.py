@@ -120,15 +120,16 @@ def _frames_transform(frames: Union[List[np.ndarray], List[np.ndarray]]) -> List
         
         # Reshape to (4, 2) float32
         pts = roi_contour.reshape(4, 2).astype(np.float32)
-        
+
         # Order points: top-left, top-right, bottom-right, bottom-left
-        rect = np.zeros((4, 2), dtype="float32")
-        s = pts.sum(axis=1)
-        diff = np.diff(pts, axis=1)
-        rect[0] = pts[np.argmin(s)]      # top-left
-        rect[2] = pts[np.argmax(s)]      # bottom-right
-        rect[1] = pts[np.argmin(diff)]   # top-right
-        rect[3] = pts[np.argmax(diff)]   # bottom-left
+        # Sort by y first to split top/bottom pair, then by x within each pair.
+        # This is robust to any rotation of the receipt.
+        pts_sorted_y = pts[np.argsort(pts[:, 1])]   # sort all 4 by y
+        top_two = pts_sorted_y[:2]                   # two smallest y = top edge
+        bot_two = pts_sorted_y[2:]                   # two largest  y = bottom edge
+        tl, tr = top_two[np.argsort(top_two[:, 0])]   # left=smaller x, right=larger x
+        bl, br = bot_two[np.argsort(bot_two[:, 0])]
+        rect = np.array([tl, tr, br, bl], dtype="float32")
         
         # Calculate average side lengths (more robust than single sides)
         width_top = np.linalg.norm(rect[1] - rect[0])
@@ -163,7 +164,8 @@ def _frames_transform(frames: Union[List[np.ndarray], List[np.ndarray]]) -> List
         # Compute and apply perspective transform
         M = cv2.getPerspectiveTransform(rect, dst)
         warped = cv2.warpPerspective(frame_cv, M, (final_width, final_height))
-        
+
+
         transformed_frames.append(warped)
     
     return transformed_frames
@@ -333,13 +335,14 @@ class FrameResult:
     def __repr__(self):
         _n = 6
         s = ''
-        s += f"{'-'*_n} Frame {self.label} {'-'*_n}\n"
+        s += f"{'-'*_n} Frame {self.label} - Avg confidence {self.get_rank()} {'-'*_n}\n"
         for ocr in self.ocr_results:
             s += f'  {ocr}\n'
+            
         return s
 
     def get_rank(self):
-        return sum([ocrres.confidence for ocrres in self.ocr_results])
+        return sum([ocrres.confidence for ocrres in self.ocr_results])/len(self.ocr_results)
 
 
 
@@ -351,25 +354,59 @@ def _rank_ocr_results(results: List[List[OCRResult]])-> Dict[str,float]:
 
 
 
-def _easyocr(frames: List[np.ndarray]) -> List[FrameResult]:
+def _bbox_angle(bbox) -> float:
+    """Return the angle of a bbox's top edge from horizontal, in degrees."""
+    (x0, y0), (x1, y1) = bbox[0], bbox[1]
+    return math.degrees(math.atan2(y1 - y0, x1 - x0))
+
+def _deskew_frame(frame: np.ndarray, angle_deg: float) -> np.ndarray:
+    """Rotate frame by angle_deg, expanding canvas to avoid clipping."""
+    h, w = frame.shape[:2]
+    cx, cy = w / 2.0, h / 2.0
+    R = cv2.getRotationMatrix2D((cx, cy), angle_deg, 1.0)
+    cos_a, sin_a = abs(R[0, 0]), abs(R[0, 1])
+    new_w = int(h * sin_a + w * cos_a)
+    new_h = int(h * cos_a + w * sin_a)
+    R[0, 2] += (new_w - w) / 2.0
+    R[1, 2] += (new_h - h) / 2.0
+    return cv2.warpAffine(frame, R, (new_w, new_h),
+                          flags=cv2.INTER_LINEAR,
+                          borderMode=cv2.BORDER_REPLICATE)
+
+def _easyocr(frames: List[np.ndarray]) -> tuple:
     """
-    Perform OCR on each frame using EasyOCR.
-
-    Returns:
-        List[List[Tuple[str, float]]]: For each input frame, a list of
-            (text, confidence) tuples in readppframeing order.
-
-    Optimized for document-style text (after your perspective transform + averaging).
+    Two-stage OCR:
+      Stage 1: OCR to measure average bounding-box skew from horizontal.
+      Stage 2: Rotate frame to correct that skew, then re-run OCR.
     """
 
     if not frames:
-        return []
+        return [], []
 
     results: List[List[OCRResult]] = []
+    deskewed_frames: List[np.ndarray] = []
 
-    for i,frame in enumerate(frames):
-        # detail=1 returns (bbox, text, confidence) per detection
-        # paragraph=True omits confidence, so we use paragraph=False
+    for i, frame in enumerate(frames):
+        # --- Stage 1: detect skew ---
+        stage1 = _reader.readtext(
+            frame,
+            detail=1,
+            paragraph=False,
+            text_threshold=0.6,
+            low_text=0.3,
+            width_ths=0.7,
+            height_ths=0.7,
+            min_size=10,
+            rotation_info=None
+        )
+        angles = [_bbox_angle(bbox) for bbox, _, conf in stage1 if conf > 0.5]
+        skew = float(np.median(angles)) if angles else 0.0
+        print(f"Frame {i}: stage1 detections={len(stage1)}, median skew={skew:.2f}°")
+
+        # --- Stage 2: deskew then re-run OCR ---
+        if abs(skew) > 0.5:
+            frame = _deskew_frame(frame, skew)
+
         detections = _reader.readtext(
             frame,
             detail=1,
@@ -382,19 +419,19 @@ def _easyocr(frames: List[np.ndarray]) -> List[FrameResult]:
             rotation_info=None
         )
 
-        # Fallback: if no detections, retry with lower threshold
         if not detections and frame.shape[0] > 100:
             detections = _reader.readtext(
                 frame, detail=1, paragraph=False,
                 text_threshold=0.5
             )
 
+        deskewed_frames.append(frame)
         results.append(FrameResult(i, [
             OCRResult(text, conf, bbox, label=_make_label(j))
             for j, (bbox, text, conf) in enumerate(detections)
         ]))
 
-    return results
+    return deskewed_frames, results
 
 def _visualize_ocr(frames: List[np.ndarray], frame_results: List[FrameResult],
                    output_dir: str = "./ocr_viz") -> None:
@@ -435,9 +472,9 @@ def test():
     _frames_flat = _frames_transform(_frame_sel)
     #cv2.imshow('flattened frame (roi)', _frames_flat[0])
     #cv2.waitKey()
-    results = _easyocr(_frames_flat)
+    deskewed, results = _easyocr(_frames_flat)
     for frame_result in results:
         print(frame_result)
-    _visualize_ocr(_frames_flat, results)
+    _visualize_ocr(deskewed, results)
 
 test()
