@@ -16,3 +16,36 @@ E.g.: detect quadrilateral rois for text
     rotate image by y=cur_bb_vertical-(average rotation)
     Limit to very small rotations. If abs(y-axis - bounding box y-axis) > threshold,
     reject the scan and make user scan again
+
+[RECEIPT LLM - recommended models for RTX 5060 Ti 16GB]
+
+extract_items_llm_only (vision):
+  Best:    gemma3:12b        -- multimodal, best accuracy/speed tradeoff, fits easily in 16GB at Q4
+  Backup:  qwen2.5vl:7b      -- faster, slightly lower accuracy, good for quick scans
+  Avoid:   llama3.2-vision:11b -- slower than gemma3:12b with no accuracy gain on receipts
+
+  Pros:
+    - Single pipeline step, no intermediate error accumulation
+    - Handles shadows, skew, and wrinkles better (sees spatial layout directly)
+    - Faster end-to-end (~5-15s)
+    - Less code/maintenance surface
+  Cons:
+    - Vision models are larger and require more VRAM than text-only models
+    - Harder to debug — no intermediate OCR output to inspect
+    - LLM may hallucinate items not present if image quality is very poor
+
+extract_items_ocr (text only, no vision needed):
+  Best:    qwen2.5:7b        -- excellent structured extraction from noisy text, very fast
+  Backup:  gemma3:12b        -- overkill for text-only but works fine if already loaded
+  Note:    OCR pipeline bottleneck is EasyOCR (cpu). Set gpu=True in receipt_ocr.py
+           (_reader = easyocr.Reader(['en'], gpu=True)) to cut OCR time significantly.
+
+  Pros:
+    - Text-only LLM is smaller/faster than a vision model
+    - OCR output is inspectable — easier to debug extraction errors
+    - Perspective correction + deskew in receipt_ocr.py can improve results on bad photos
+  Cons:
+    - OCR errors compound into LLM errors (garbage in, garbage out)
+    - Slower end-to-end (~30-60s with gpu=False, ~10-20s with gpu=True)
+    - Two models to manage vs one
+    - EasyOCR has no awareness of receipt structure — mangles multi-column price lines
