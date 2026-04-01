@@ -1,5 +1,5 @@
 import math
-from typing import List, Union
+from typing import Dict, List, Union
 from PIL import Image
 import numpy as np
 import cv2
@@ -325,8 +325,33 @@ class OCRResult:
     def __repr__(self):
         return f"[{self.label}] ({self.confidence:.2f}) {self.text}"
 
+class FrameResult:
+    def __init__(self, label: Union[str,int], ocr_results: List[OCRResult]):
+        self.label = label
+        self.ocr_results = ocr_results
 
-def _easyocr(frames: List[np.ndarray]) -> List[List[OCRResult]]:
+    def __repr__(self):
+        _n = 6
+        s = ''
+        s += f"{'-'*_n} Frame {self.label} {'-'*_n}\n"
+        for ocr in self.ocr_results:
+            s += f'  {ocr}\n'
+        return s
+
+    def get_rank(self):
+        return sum([ocrres.confidence for ocrres in self.ocr_results])
+
+
+
+def _rank_ocr_results(results: List[List[OCRResult]])-> Dict[str,float]:
+    rankings = {}
+    for frame_result in results:
+        #net_confidence = frame_
+        pass
+
+
+
+def _easyocr(frames: List[np.ndarray]) -> List[FrameResult]:
     """
     Perform OCR on each frame using EasyOCR.
 
@@ -342,7 +367,7 @@ def _easyocr(frames: List[np.ndarray]) -> List[List[OCRResult]]:
 
     results: List[List[OCRResult]] = []
 
-    for frame in frames:
+    for i,frame in enumerate(frames):
         # detail=1 returns (bbox, text, confidence) per detection
         # paragraph=True omits confidence, so we use paragraph=False
         detections = _reader.readtext(
@@ -364,20 +389,20 @@ def _easyocr(frames: List[np.ndarray]) -> List[List[OCRResult]]:
                 text_threshold=0.5
             )
 
-        results.append([
+        results.append(FrameResult(i, [
             OCRResult(text, conf, bbox, label=_make_label(j))
             for j, (bbox, text, conf) in enumerate(detections)
-        ])
+        ]))
 
     return results
 
-def _visualize_ocr(frames: List[np.ndarray], ocr_results: List[List[OCRResult]],
+def _visualize_ocr(frames: List[np.ndarray], frame_results: List[FrameResult],
                    output_dir: str = "./ocr_viz") -> None:
     import os
     os.makedirs(output_dir, exist_ok=True)
-    for i, (frame, results) in enumerate(zip(frames, ocr_results)):
+    for i, (frame, frame_result) in enumerate(zip(frames, frame_results)):
         vis = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR) if frame.ndim == 2 else frame.copy()
-        for r in results:
+        for r in frame_result.ocr_results:
             pts = np.array(r.bbox, dtype=np.int32)
             cv2.polylines(vis, [pts], isClosed=True, color=(0, 0, 0), thickness=2)
             label = f"{r.label} {r.confidence:.2f}"
@@ -404,17 +429,15 @@ def test():
     frames = _load_images("./test_assets", "jpg")
     print(f"Loaded n={len(frames)} frames")
     _frame_sel = _frames_select(frames)
-    print(f"_frames_select() got {len(_frame_sel)} images")
+    print(f"_frames_select() got {len(_frame_sel)} image(s)")
     #cv2.imshow('best frame', _frame_sel[0])
     #cv2.waitKey()
     _frames_flat = _frames_transform(_frame_sel)
     #cv2.imshow('flattened frame (roi)', _frames_flat[0])
     #cv2.waitKey()
     results = _easyocr(_frames_flat)
-    for i, frame_results in enumerate(results):
-        print(f"\n--- Frame {i} ---")
-        for r in frame_results:
-            print(r)
+    for frame_result in results:
+        print(frame_result)
     _visualize_ocr(_frames_flat, results)
 
 test()

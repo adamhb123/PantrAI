@@ -7,3 +7,12 @@ To also get confidence scores (useful for filtering):
 Set detail=1 and change return type to List[List[tuple]] (bbox, text, conf).
 Multiple languages:
 Change reader to easyocr.Reader(['en', 'es']).
+
+4/1/26
+-- Can possibly add a slight rotation transformation
+to image warping to ensure text is horizontal.
+E.g.: detect quadrilateral rois for text
+    take average rotation from y-axis
+    rotate image by y=cur_bb_vertical-(average rotation)
+    Limit to very small rotations. If abs(y-axis - bounding box y-axis) > threshold,
+    reject the scan and make user scan again
