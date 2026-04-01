@@ -87,36 +87,31 @@ def _frames_transform(frames: Union[List[np.ndarray], List[np.ndarray]]) -> List
     for frame in frames:
         frame_cv = frame.copy()
         orig_h, orig_w = frame_cv.shape[:2]
-        # Preprocessing
+
+        # Threshold on bright receipt against dark background
         gray = cv2.cvtColor(frame_cv, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-        edged = cv2.Canny(blurred, 30, 200)
-        
-        # Morphological operations to close gaps in edges
-        kernel = np.ones((3, 3), np.uint8)
-        edged = cv2.dilate(edged, kernel, iterations=2)
-        edged = cv2.erode(edged, kernel, iterations=1)
-        
-        # Find contours
-        contours, _ = cv2.findContours(edged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        # Sort by area (largest first)
+        _, thresh = cv2.threshold(gray, 180, 255, cv2.THRESH_BINARY)
+
+        # Close gaps from wrinkles/shadows
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
+        closed = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+
+        # Find contours, pick largest
+        contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         contours = sorted(contours, key=cv2.contourArea, reverse=True)
-        
+
         roi_contour = None
-        for contour in contours:
-            area = cv2.contourArea(contour)
-            if area < 0.05 * orig_h * orig_w:   # Skip tiny contours (<5% of image)
-                continue
-                
-            # Approximate contour to polygon
-            peri = cv2.arcLength(contour, True)
-            approx = cv2.approxPolyDP(contour, 0.02 * peri, True)
-            
-            # Accept if it's approximately a quadrilateral
+        if contours:
+            hull = cv2.convexHull(contours[0])
+            peri = cv2.arcLength(hull, True)
+            approx = cv2.approxPolyDP(hull, 0.02 * peri, True)
             if len(approx) == 4:
                 roi_contour = approx
-                break
+            else:
+                # Fallback: minAreaRect if approxPolyDP didn't yield 4 points
+                rect = cv2.minAreaRect(hull)
+                box = cv2.boxPoints(rect).astype(np.float32)
+                roi_contour = box.reshape(4, 1, 2).astype(np.int32)
         
         if roi_contour is None:
             # No good rectangle found → keep original
