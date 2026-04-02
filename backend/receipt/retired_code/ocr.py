@@ -9,7 +9,7 @@ from PIL import Image
 import numpy as np
 import cv2
 import easyocr # type: ignore
-from utility import load_image
+from util import load_images
 
 _reader = easyocr.Reader(['en'], gpu=False)   # type: ignore # Set gpu=True if you have CUDA
 

@@ -5,7 +5,7 @@ FastAPI server exposing receipt extraction endpoints.
 
 Endpoints:
   GET  /health              - liveness check
-  POST /extract             - extract items from one or more base64-encoded images
+  POST /extract-receipts    - extract items from one or more base64-encoded receipt images
 """
 
 import base64
@@ -79,7 +79,7 @@ def health():
 
 
 @app.post("/extract-receipts", response_model=ExtractResponse)
-def extract(request: ExtractRequest):
+def extract(request: ExtractRequest) -> ExtractResponse:
     images = [_b64_to_ndarray(b64) for b64 in request.images]
     model = request.model or VISION_MODEL
 
