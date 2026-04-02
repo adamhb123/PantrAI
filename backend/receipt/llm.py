@@ -37,7 +37,7 @@ from typing import List, Optional, Tuple
 from dotenv import load_dotenv
 
 # Local imports
-from ocr import load_images, frames_transform
+from util import load_images
 from prompts import PROMPT_FIRST_PASS, PROMPT_FINAL_PASS#, PROMPT_SECOND_PASS
 
 load_dotenv(Path(__file__).parent / "llm.env")

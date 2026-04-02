@@ -1,3 +1,7 @@
+"""
+This entire file is basically useless now due to switch to I2Text LLM approach
+"""
+
 import math
 import os
 from typing import Dict, List, Union
@@ -5,6 +9,7 @@ from PIL import Image
 import numpy as np
 import cv2
 import easyocr # type: ignore
+from utility import load_image
 
 _reader = easyocr.Reader(['en'], gpu=False)   # type: ignore # Set gpu=True if you have CUDA
 
@@ -455,15 +460,6 @@ def visualize_ocr(frames: List[np.ndarray], frame_results: List[FrameResult],
         cv2.imwrite(out_path, vis)
         print(f"Saved {out_path}")
     
-def load_images(path, file_type):
-    import glob
-    path = f"{path}/*.{file_type}"
-    images = []
-    for file in glob.glob(path):
-        img = cv2.imread(file)
-        if img is not None:
-            images.append(img)
-    return images
 
 def test():
     frames = load_images("./test_assets", "jpg")
