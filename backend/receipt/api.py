@@ -78,7 +78,7 @@ def health():
     return {"status": "ok"}
 
 
-@app.post("/extract", response_model=ExtractResponse)
+@app.post("/extract-receipt", response_model=ExtractResponse)
 def extract(request: ExtractRequest):
     images = [_b64_to_ndarray(b64) for b64 in request.images]
     model = request.model or VISION_MODEL
