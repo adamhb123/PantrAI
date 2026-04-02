@@ -60,3 +60,21 @@ give the model a general idea of what the image contained improved the results G
 Testing to see if we even need to cold boot...
 
 Doesn't look like we need it
+
+Ollama does cache image embeddings across separate calls, and it's well-documented.
+
+The mechanism: Ollama computes a hash of the raw image bytes.
+If you send the same image again while the model is still loaded,
+it matches the cached KV slot and skips the forward pass for the image tokens entirely.
+The vision encoder output is reused directly.
+
+This is exactly why your two-pass approach works:
+
+First pass processes the image fully, populating the KV cache with the image token embeddings
+Final pass sends the same bytes → hash matches → image tokens are served from cache, and the model attends over them as if they were freshly computed
+There's one critical caveat for your setup though: you're calling ollama.generate(model=VISION_MODEL, prompt='', keep_alive=0) to unload the model between
+calls (llm.py:58 and llm.py:94). That wipes the cache entirely. The unload at line 94 (after the final pass) is fine, but the unload at line 58 (before the
+first pass) means every run starts cold — which is intentional for the reload-to-fix-bad-state workaround.
+
+Also worth noting: Ollama issue #11365 specifically flags that Gemma 3 has broken KV cache reuse due to its sliding window attention architecture,
+so the caching benefit may not apply to gemma3:12b at all.

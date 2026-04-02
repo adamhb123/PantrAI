@@ -33,7 +33,7 @@ import re
 import ollama
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from dotenv import load_dotenv
 
 # Local imports
@@ -45,6 +45,16 @@ load_dotenv(Path(__file__).parent / "llm.env")
 # Environment variables
 VISION_MODEL      = os.environ.get("OLLAMA_VISION_MODEL", "gemma3:12b")
 TEXT_MODEL        = os.environ.get("OLLAMA_TEXT_MODEL", "qwen2.5:7b")
+
+def _combine_outputs_and_prompt(prompt_output_tup: List[Tuple[str, str]],
+                                new_prompt: str):
+    str_build = ""
+    for output_prompt, output in prompt_output_tup:
+        str_build += (f"Based on the following prompt: {output_prompt}\n" + \
+                      f" we know that: {output}\n" + \
+                        f"Use this information to do the following: {new_prompt}")
+        
+    return str_build
 
 def chat_with_vision_model(image: str | np.ndarray, model) -> str | None:
     """
@@ -85,10 +95,14 @@ def chat_with_vision_model(image: str | np.ndarray, model) -> str | None:
         print(f"[debug] second pass response: {_second_pass.message.content}\n")
         """
         # Final pass
+        final_prompt = _combine_outputs_and_prompt( # This may be useless
+            [(PROMPT_FIRST_PASS, str(_first_pass.message.content))],
+            PROMPT_FINAL_PASS
+        )
         response = ollama.chat(model=model, messages=[
           {
             "role": "user",
-            "content": PROMPT_FINAL_PASS,
+            "content": final_prompt,
             "images": [_b64]
           },
         ], options={"temperature": 0})

@@ -1,7 +1,7 @@
 """Prompts for receipt_llm.py
 
 Ideas:
-    1. Limit possible product names to items in OpenFood db
+    1. Limit possible product names to items in OpenFoodFacts db
 """
 
 
