@@ -1,11 +1,12 @@
 import math
+import os
 from typing import Dict, List, Union
 from PIL import Image
 import numpy as np
 import cv2
-import easyocr
+import easyocr # type: ignore
 
-_reader = easyocr.Reader(['en'], gpu=False)   # Set gpu=True if you have CUDA
+_reader = easyocr.Reader(['en'], gpu=False)   # type: ignore # Set gpu=True if you have CUDA
 
 class HashableNdArray:
     def __init__(self, arr: np.ndarray):
@@ -14,17 +15,15 @@ class HashableNdArray:
         return hash(self.arr.tobytes())
     def __eq__(self, other):
         return np.array_equal(self.arr, other.arr)
-    def to_image(self) -> Image.Image:
-        pass
 
 
-def _frames_to_grayscale(frames: List[Union[np.ndarray, Image.Image]]) -> List[np.ndarray]:
+def frames_to_grayscale(frames: List[Union[np.ndarray, Image.Image]]) -> List[np.ndarray]:
     grays = []
     for frame in frames:
-        grays.append(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
+        grays.append(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)) # type: ignore
     return grays
 
-def _frames_select(frames: List[np.ndarray], pct_output_frames: float = 0.5) -> List[np.ndarray]:
+def frames_select(frames: List[np.ndarray], pct_output_frames: float = 0.5) -> List[np.ndarray]:
     """
     Filter images for quality using OpenCV:
         * Convert images to grayscale
@@ -37,7 +36,7 @@ def _frames_select(frames: List[np.ndarray], pct_output_frames: float = 0.5) -> 
     :rtype: List[Image.Image]
     """
     _n_output_frames = math.ceil(pct_output_frames*len(frames))
-    print(f"_frames_select(): selecting {_n_output_frames} frames")
+    print(f"frames_select(): selecting {_n_output_frames} frames")
     frames_metadata = {}
     for frame in frames:
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -70,7 +69,7 @@ def _frames_select(frames: List[np.ndarray], pct_output_frames: float = 0.5) -> 
     selected_frames = [f[0].arr for f in frames_scored[:_n_output_frames]]
     return selected_frames
 
-def _frames_transform(frames: Union[List[np.ndarray], List[np.ndarray]]) -> List[np.ndarray]:
+def frames_transform(frames: Union[List[np.ndarray], List[np.ndarray]], debug: bool = False) -> List[np.ndarray]:
     """
     Flatten frames by detecting the largest rectangular ROI and applying
     perspective transform to make it perfectly rectangular.
@@ -165,7 +164,11 @@ def _frames_transform(frames: Union[List[np.ndarray], List[np.ndarray]]) -> List
         M = cv2.getPerspectiveTransform(rect, dst)
         warped = cv2.warpPerspective(frame_cv, M, (final_width, final_height))
 
-
+        if debug:
+            os.makedirs("./debug_images", exist_ok=True)
+            out_path = f"./debug_images/frame_{len(transformed_frames):03d}.jpg"
+            cv2.imwrite(out_path, warped)
+            print(f"[debug] saved {out_path}")
         transformed_frames.append(warped)
     
     return transformed_frames
@@ -275,7 +278,7 @@ def _multi_frame_averaging(frames: List[np.ndarray]) -> Image.Image:
     return result_pil
 '''
 
-def _classic_ocr_preprocessing(frames: List[np.ndarray]) -> List[np.ndarray]:
+def classic_ocr_preprocessing(frames: List[np.ndarray]) -> List[np.ndarray]:
     """
     Perform classical OCR preprocessing operations on each frame
     using OpenCV:
@@ -307,7 +310,7 @@ def _classic_ocr_preprocessing(frames: List[np.ndarray]) -> List[np.ndarray]:
         ppframes.append(ppframe)
     return ppframes
 
-def _make_label(n: int) -> str:
+def make_label(n: int) -> str:
     """Convert 0-based index to spreadsheet-style label: 0→A, 25→Z, 26→AA, ..."""
     label = ""
     n += 1
@@ -346,20 +349,20 @@ class FrameResult:
 
 
 
-def _rank_ocr_results(results: List[List[OCRResult]])-> Dict[str,float]:
+"""def rank_ocr_results(results: List[List[OCRResult]])-> Dict[str,float]:
     rankings = {}
     for frame_result in results:
         #net_confidence = frame_
-        pass
+        pass"""
 
 
 
-def _bbox_angle(bbox) -> float:
+def bbox_angle(bbox) -> float:
     """Return the angle of a bbox's top edge from horizontal, in degrees."""
     (x0, y0), (x1, y1) = bbox[0], bbox[1]
     return math.degrees(math.atan2(y1 - y0, x1 - x0))
 
-def _deskew_frame(frame: np.ndarray, angle_deg: float) -> np.ndarray:
+def deskew_frame(frame: np.ndarray, angle_deg: float) -> np.ndarray:
     """Rotate frame by angle_deg, expanding canvas to avoid clipping."""
     h, w = frame.shape[:2]
     cx, cy = w / 2.0, h / 2.0
@@ -373,7 +376,7 @@ def _deskew_frame(frame: np.ndarray, angle_deg: float) -> np.ndarray:
                           flags=cv2.INTER_LINEAR,
                           borderMode=cv2.BORDER_REPLICATE)
 
-def _easyocr(frames: List[np.ndarray]) -> tuple:
+def easyocr(frames: List[np.ndarray]) -> tuple:
     """
     Two-stage OCR:
       Stage 1: OCR to measure average bounding-box skew from horizontal.
@@ -383,7 +386,7 @@ def _easyocr(frames: List[np.ndarray]) -> tuple:
     if not frames:
         return [], []
 
-    results: List[List[OCRResult]] = []
+    results: List[FrameResult] = []
     deskewed_frames: List[np.ndarray] = []
 
     for i, frame in enumerate(frames):
@@ -399,13 +402,13 @@ def _easyocr(frames: List[np.ndarray]) -> tuple:
             min_size=10,
             rotation_info=None
         )
-        angles = [_bbox_angle(bbox) for bbox, _, conf in stage1 if conf > 0.5]
+        angles = [bbox_angle(bbox) for bbox, _, conf in stage1 if conf > 0.5]
         skew = float(np.median(angles)) if angles else 0.0
         print(f"Frame {i}: stage1 detections={len(stage1)}, median skew={skew:.2f}°")
 
         # --- Stage 2: deskew then re-run OCR ---
         if abs(skew) > 0.5:
-            frame = _deskew_frame(frame, skew)
+            frame = deskew_frame(frame, skew)
 
         detections = _reader.readtext(
             frame,
@@ -427,13 +430,13 @@ def _easyocr(frames: List[np.ndarray]) -> tuple:
 
         deskewed_frames.append(frame)
         results.append(FrameResult(i, [
-            OCRResult(text, conf, bbox, label=_make_label(j))
+            OCRResult(text, conf, bbox, label=make_label(j))
             for j, (bbox, text, conf) in enumerate(detections)
         ]))
 
     return deskewed_frames, results
 
-def _visualize_ocr(frames: List[np.ndarray], frame_results: List[FrameResult],
+def visualize_ocr(frames: List[np.ndarray], frame_results: List[FrameResult],
                    output_dir: str = "./ocr_viz") -> None:
     import os
     os.makedirs(output_dir, exist_ok=True)
@@ -452,7 +455,7 @@ def _visualize_ocr(frames: List[np.ndarray], frame_results: List[FrameResult],
         cv2.imwrite(out_path, vis)
         print(f"Saved {out_path}")
     
-def _load_images(path, file_type):
+def load_images(path, file_type):
     import glob
     path = f"{path}/*.{file_type}"
     images = []
@@ -463,18 +466,19 @@ def _load_images(path, file_type):
     return images
 
 def test():
-    frames = _load_images("./test_assets", "jpg")
+    frames = load_images("./test_assets", "jpg")
     print(f"Loaded n={len(frames)} frames")
-    _frame_sel = _frames_select(frames)
-    print(f"_frames_select() got {len(_frame_sel)} image(s)")
+    _frame_sel = frames_select(frames)
+    print(f"frames_select() got {len(_frame_sel)} image(s)")
     #cv2.imshow('best frame', _frame_sel[0])
     #cv2.waitKey()
-    _frames_flat = _frames_transform(_frame_sel)
+    _frames_flat = frames_transform(_frame_sel)
     #cv2.imshow('flattened frame (roi)', _frames_flat[0])
     #cv2.waitKey()
-    deskewed, results = _easyocr(_frames_flat)
+    deskewed, results = easyocr(_frames_flat)
     for frame_result in results:
         print(frame_result)
-    _visualize_ocr(deskewed, results)
+    visualize_ocr(deskewed, results)
 
-test()
+if __name__=="__main__":
+    test()

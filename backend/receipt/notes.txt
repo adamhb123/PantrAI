@@ -49,3 +49,14 @@ extract_items_ocr (text only, no vision needed):
     - Slower end-to-end (~30-60s with gpu=False, ~10-20s with gpu=True)
     - Two models to manage vs one
     - EasyOCR has no awareness of receipt structure — mangles multi-column price lines
+
+  4/2/26
+-------------
+Interesting occurrence: the model gemma3:12b hallucinated fake items when 
+running solely on the prompts with a request to output json. However,
+ensuring the model is cold booted and adding an initial overpass step to
+give the model a general idea of what the image contained improved the results GREATLY.
+
+Testing to see if we even need to cold boot...
+
+Doesn't look like we need it
