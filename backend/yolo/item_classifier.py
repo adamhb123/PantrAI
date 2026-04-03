@@ -1,5 +1,6 @@
 from utility import load_image
 from ultralytics import YOLOWorld
+import os
 
 # img = input("Which image would you like to load? ")
 # path = f"img/{img}"
@@ -25,10 +26,10 @@ def classifyItem(path="img/apple.png", model="yolov8s-worldv2.pt"):
 
 	"carrot","broccoli","cauliflower","spinach","lettuce",
 	"kale","cabbage","brussels sprouts","asparagus",
-	"zucchini","cucumber","eggplant","bell pepper",
+	"zucchini","cucumber","eggplant","bell pepper","jalepeno",
 	"chili pepper","onion","garlic","potato","sweet potato",
-	"tomato","corn","peas","green beans","mushroom",
-	"beet","radish","turnip","parsnip","leek","bok choy",
+	"tomato","corn","peas","green beans","mushroom","raddish",
+	"beet","radish","turnip","parsnip","leek","bok choy","ginger",
 	"celery","artichoke","arugula","okra","pumpkin","squash",
 
 
@@ -39,7 +40,7 @@ def classifyItem(path="img/apple.png", model="yolov8s-worldv2.pt"):
 	"lamb chop", "turkey", "duck",
 	"salmon","tuna","shrimp","crab","lobster",
 	"egg","fried egg","boiled egg","scrambled egg",
-	"tofu","tempeh","lentils","chickpeas","black beans",
+	"tofu","tempeh","lentils","chickpeas","black beans","soy beans",
 
 	"bread","bagel","croissant",
 	"rice","white rice","brown rice","fried rice",
@@ -77,5 +78,8 @@ def classifyItem(path="img/apple.png", model="yolov8s-worldv2.pt"):
 
 	return predicted
 
+def classifyRandom():
+	dir = os.listdir("img")
+	
 print(classifyItem())
 
