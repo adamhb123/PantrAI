@@ -23,6 +23,8 @@ Expected JSON response schema:
 """
 
 import base64
+from datetime import datetime
+from enum import Enum
 import cv2
 import functools
 import json
@@ -37,8 +39,8 @@ from typing import List, Optional, Tuple
 from dotenv import load_dotenv
 
 # Local imports
-from util import load_images
-from prompts import PROMPT_FIRST_PASS, PROMPT_FINAL_PASS#, PROMPT_SECOND_PASS
+from util import image_to_b64, load_images
+from prompts import PROMPTS_ITEM, PROMPTS_RECEIPT 
 
 load_dotenv(Path(__file__).parent / "llm.env")
 
@@ -56,7 +58,7 @@ def _combine_outputs_and_prompt(prompt_output_tup: List[Tuple[str, str]],
         
     return str_build
 
-def chat_with_vision_model(image: str | np.ndarray, model) -> str | None:
+def chat_with_vision_model(image: str | np.ndarray, model: str, prompts: List[str], final_prompt_temperature: float|None=0.0, forward_prompts=True) -> str | None:
     """
     Sends an image to a vision model via Ollama.
 
@@ -68,54 +70,65 @@ def chat_with_vision_model(image: str | np.ndarray, model) -> str | None:
     """
     try:
         ollama.generate(model=VISION_MODEL, prompt='', keep_alive=0)
-        if type(image) == str:
-            with open(image, "rb") as f:
-                _b64 = base64.b64encode(f.read()).decode("utf-8")
-        elif type(image) == np.ndarray:
-            _, buffer = cv2.imencode('.jpg', image)
-            _b64 = base64.b64encode(buffer).decode('utf-8')
-        else:
-            raise TypeError("Invalid type for argument : 'image'")
-       
+        _b64 = image_to_b64(image)
         # First pass
         print(f"[debug] image b64 length: {len(_b64)}")
-        _first_pass = ollama.chat(model=VISION_MODEL, messages=[{
+        last_prompt = prompts[0]
+        last_result = ollama.chat(model=model, messages=[{
             "role": "user",
-            "content": PROMPT_FIRST_PASS,
+            "content": last_prompt,
             "images": [_b64],
         }])
-        print(f"[debug] first pass response: {_first_pass.message.content}\n")
-        
-        # Second pass (excluding for now)
-        """_second_pass = ollama.chat(model=VISION_MODEL, messages=[{
-            "role": "user",
-            "content": PROMPT_SECOND_PASS,
-            "images": [_b64],
-        }])
-        print(f"[debug] second pass response: {_second_pass.message.content}\n")
-        """
-        # Final pass
-        final_prompt = _combine_outputs_and_prompt( # This may be useless
-            [(PROMPT_FIRST_PASS, str(_first_pass.message.content))],
-            PROMPT_FINAL_PASS
-        )
-        response = ollama.chat(model=model, messages=[
-          {
-            "role": "user",
-            "content": final_prompt,
-            "images": [_b64]
-          },
-        ], options={"temperature": 0})
-        pprint(response.message)
+        for i,  prompt in enumerate(prompts):
+            if i == 0:
+                continue
+            cur_prompt = prompt if not forward_prompts else _combine_outputs_and_prompt( # This may be useless
+                [(last_prompt, str(last_result.message.content))],
+                prompt
+            ) 
+            options = {"temperature": final_prompt_temperature} if i == len(prompts)-1 and \
+                final_prompt_temperature is not None else {}
+            last_result = ollama.chat(model=model, messages=[
+            {
+                "role": "user",
+                "content": cur_prompt,
+                "images": [_b64]
+            },
+            ], options=options)
+            last_prompt = cur_prompt
+        # Unload model
         ollama.generate(model=VISION_MODEL, prompt='', keep_alive=0)
-        return response.message.content
+        return last_result.message.content
     except FileNotFoundError:
         return "Error: Image file not found."
     except Exception as e:
         return f"An error occurred: {e}"
 
+class ParseType(Enum):
+    Receipt=0
+    Item=1
+    
 @dataclass
-class ReceiptItem:
+class ParseItem:
+    pass
+
+@dataclass
+class ParseResult:
+    pass
+
+@dataclass
+class ItemItem(ParseItem):
+    name: str
+    generic_name: str
+    quantity: int
+
+@dataclass
+class ItemResult(ParseResult):
+    items: List[ItemItem]
+    date: str
+
+@dataclass
+class ReceiptItem(ParseItem):
     name: str
     generic_name: str
     quantity: int
@@ -124,7 +137,7 @@ class ReceiptItem:
 
 
 @dataclass
-class ReceiptResult:
+class ReceiptResult(ParseResult):
     items: List[ReceiptItem]
     store: Optional[str]
     date: Optional[str]
@@ -154,33 +167,49 @@ class ReceiptResult:
         return "\n".join(lines)
 
 
-def _parse_response(raw: str) -> ReceiptResult:
+def _parse_response(raw: str, parse_type: ParseType) -> ParseResult:
     raw = re.sub(r"```(?:json)?", "", raw).strip()
     data = json.loads(raw)
-    items = [
-        ReceiptItem(
-            name=item["name"],
-            generic_name=item["generic_name"],
-            quantity=item.get("quantity", 1),
-            unit_price=item.get("unit_price"),
-            total_price=item.get("total_price"),
-        )
-        for item in data.get("items", [])
-    ]
-    return ReceiptResult(items=items, store=data.get("store"), date=data.get("date"))
+    if parse_type == ParseType.Receipt:
+        items = [
+            ReceiptItem(
+                name=item["name"],
+                generic_name=item["generic_name"],
+                quantity=item.get("quantity", 1),
+                unit_price=item.get("unit_price"),
+                total_price=item.get("total_price"),
+            )
+            for item in data.get("items", [])
+        ]
+        res = ReceiptResult(items=items, store=data.get("store"), date=data.get("date"))
+    else: #elif parse_type == ParseType.Item:
+        items = [
+            ItemItem(
+                name=item["name"],
+                generic_name=item["generic_name"],
+                quantity=item.get("quantity", 1),
+            )
+            for item in data.get("items", [])
+        ]
+        res = ItemResult(items=items, date=datetime.now().strftime("%Y-%m-%d"))
+    return res
 
 def extract_items_llm_only(image: str | np.ndarray,
-                           model: str) -> ReceiptResult | None:
+                           model: str,
+                           parse_type: ParseType) -> ParseResult | None:
     """Send the image directly to a vision LLM. No preprocessing."""
-    response = chat_with_vision_model(image, model=model)
+    prompts = PROMPTS_RECEIPT if parse_type==ParseType.Receipt else PROMPTS_ITEM
+    response = chat_with_vision_model(image, model=model, prompts=prompts)
     if not response:
         return None
-    return _parse_response(response)
+    return _parse_response(response, parse_type)
 
-def extract_items_llm_only_multi(images: List[str] | List[np.ndarray], model) -> List[ReceiptResult | None]:
+def extract_items_llm_only_multi(images: List[str] | List[np.ndarray],
+                                 model,
+                                 parse_type: ParseType) -> List[ReceiptResult | None]:
     responses = []
     for image in images:
-        responses.append(extract_items_llm_only(image, model))
+        responses.append(extract_items_llm_only(image, model, parse_type))
     return responses
 
 
@@ -215,7 +244,8 @@ def extract_items_llm_only_multi(images: List[str] | List[np.ndarray], model) ->
 '''
 
 if __name__=="__main__":
-    images = load_images("./","jpg")
-    images.reverse()
+    #images = load_images("./","jpg")
     #transformed = frames_transform(images, debug=True) this actually performs worse I think?
-    print(extract_items_llm_only_multi(images, model=VISION_MODEL))
+    #print(extract_items_llm_only_multi(images, model=VISION_MODEL, parse_type=ParseType.Receipt))
+    images = ["banana.png"]
+    print(extract_items_llm_only_multi(images, model=VISION_MODEL, parse_type=ParseType.Item))
