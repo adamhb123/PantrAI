@@ -22,15 +22,11 @@ Expected JSON response schema:
 }
 """
 
-import base64
 from datetime import datetime
 from enum import Enum
-import cv2
-import functools
 import json
 import numpy as np
 import os
-from pprint import pprint
 import re
 import ollama
 from dataclasses import dataclass

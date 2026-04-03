@@ -33,6 +33,15 @@ class ExtractRequest(BaseModel):
     model: Optional[str] = None
 
 
+class ItemItemOut(BaseModel):
+    name: str
+    generic_name: str
+    quantity: int
+
+class ItemResultOut(BaseModel):
+    date: Optional[str]
+    items: List[ItemItemOut]
+
 class ReceiptItemOut(BaseModel):
     name: str
     generic_name: str
@@ -48,7 +57,7 @@ class ReceiptResultOut(BaseModel):
 
 
 class ExtractResponse(BaseModel):
-    results: List[Optional[ReceiptResultOut]]
+    results: List[Optional[ReceiptResultOut | ItemResultOut]]
 
 
 # ---------------------------------------------------------------------------
@@ -121,16 +130,13 @@ def extract_items(request: ExtractRequest):
         if r is None:
             out.append(None)
         else:
-            out.append(ReceiptResultOut(
-                store=r.store,
+            out.append(ItemResultOut(
                 date=r.date,
                 items=[
-                    ReceiptItemOut(
+                    ItemItemOut(
                         name=item.name,
                         generic_name=item.generic_name,
                         quantity=item.quantity,
-                        unit_price=item.unit_price,
-                        total_price=item.total_price,
                     )
                     for item in r.items
                 ],
