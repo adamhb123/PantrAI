@@ -1,12 +1,12 @@
 from ultralytics import YOLOWorld
-import os, time
+import os
 import random
 
 
 
 def getModel(model="yolov8s-world.pt"):
 	
-	model = YOLOWorld("backend/yolo/" + model)  # small model
+	model = YOLOWorld("backend/yolo/" + model)
 
 	classes = [
 	"other",
@@ -36,7 +36,7 @@ def getModel(model="yolov8s-world.pt"):
 	"lamb chop", "turkey", "duck",
 	"salmon","tuna","shrimp","crab","lobster",
 	"egg","fried egg","boiled egg","scrambled egg",
-	"tofu","tempeh","lentils","chickpeas","black beans","soy beans",
+	"tofu","tempeh","lentils","chickpeas","black beans",
 
 	"bread","bagel","croissant",
 	"rice","white rice","brown rice","fried rice",
@@ -86,11 +86,10 @@ def classifyItem(path="img/apple.png", model=None, show=False):
 
 
 def classifyRandom(model=None, show=False):
-	dir_img = os.listdir("img")
-	rand_dir = random.choice(dir_img)
-	rand_img = random.choice(os.listdir(f"img/{rand_dir}"))
+	dir = random.choice(os.listdir("img"))
+	img = random.choice(os.listdir(f"img/{dir}"))
 
-	path = f"img/{rand_dir}/{rand_img}"
+	path = f"img/{dir}/{img}"
 	return classifyItem(path, model=model, show=show)
 
 
@@ -98,7 +97,7 @@ def classifyRandom(model=None, show=False):
 
 if __name__ == "__main__":
 
-	list_models = ['yolov8s-world.pt', 'yolov8s-worldv2.pt', 'yoloe-26l-seg.pt']
+	list_models = ['yolov8l-world.pt', 'yolov8s-worldv2.pt', 'yoloe-26l-seg.pt']
 	model = getModel(list_models[0])
 	for i in range(5):
 		print(classifyRandom(model, show=False))
