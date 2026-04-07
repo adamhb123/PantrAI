@@ -1,20 +1,16 @@
-from utility import load_image
 from ultralytics import YOLOWorld
-import os
-
-# img = input("Which image would you like to load? ")
-# path = f"img/{img}"
+import os, time
+import random
 
 
 
-
-def classifyItem(path="img/apple.png", model="yolov8s-worldv2.pt"):
-
-	model = YOLOWorld(model) # small model
+def getModel(model="yolov8s-world.pt"):
+	
+	model = YOLOWorld("backend/yolo/" + model)  # small model
 
 	classes = [
-	"other",	
-		
+	"other",
+
 	"apple", "banana", "orange","lemon","lime",
 	"grapefruit","strawberry","blueberry","raspberry",
 	"blackberry","grape","watermelon","cantaloupe",
@@ -22,7 +18,7 @@ def classifyItem(path="img/apple.png", model="yolov8s-worldv2.pt"):
 	"peach","nectarine","plum","cherry","pear",
 	"pomegranate","fig","coconut","avocado",
 	"dragon fruit","passion fruit","guava","lychee",
-	"jackfruit","durian","persimmon","starfruit", 
+	"jackfruit","durian","persimmon","starfruit",
 
 	"carrot","broccoli","cauliflower","spinach","lettuce",
 	"kale","cabbage","brussels sprouts","asparagus",
@@ -62,24 +58,48 @@ def classifyItem(path="img/apple.png", model="yolov8s-worldv2.pt"):
 	"donut","cookies","brownie","pie","pizza","lasagna"]
 
 	model.set_classes(classes)
+
+	# YOLO-E
+	#embeddings = model.get_text_pe(classes)
+	#model.set_classes(classes, embeddings)
+
+	return model
+
+
+def classifyItem(path="img/apple.png", model=None, show=False):
+	
 	results = model.predict(path)
-	# results[0].show()
+	if show:
+		results[0].show()
 	predicted = {}
 
 	for result in results:
 
 		probabilities = result.boxes.conf
 		labels = result.boxes.cls
-		
+
 		for i in range(len(probabilities)):
 			name = model.names[labels[i].item()]
 			predicted[name] = probabilities[i].item()
-			print(f"{name}: {probabilities[i]}")
 
-	return predicted
+	return (path, predicted)
 
-def classifyRandom():
-	dir = os.listdir("img")
-	
-print(classifyItem())
+
+def classifyRandom(model=None, show=False):
+	dir_img = os.listdir("img")
+	rand_dir = random.choice(dir_img)
+	rand_img = random.choice(os.listdir(f"img/{rand_dir}"))
+
+	path = f"img/{rand_dir}/{rand_img}"
+	return classifyItem(path, model=model, show=show)
+
+
+
+
+if __name__ == "__main__":
+
+	list_models = ['yolov8s-world.pt', 'yolov8s-worldv2.pt', 'yoloe-26l-seg.pt']
+	model = getModel(list_models[0])
+	for i in range(5):
+		print(classifyRandom(model, show=False))
 
