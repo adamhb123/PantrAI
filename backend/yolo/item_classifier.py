@@ -97,8 +97,22 @@ def classifyRandom(model=None, show=False):
 
 if __name__ == "__main__":
 
+	n = 30
+	correct = 0
+	total = 0
+
 	list_models = ['yolov8l-world.pt', 'yolov8s-worldv2.pt', 'yoloe-26l-seg.pt']
 	model = getModel(list_models[0])
-	for i in range(5):
-		print(classifyRandom(model, show=False))
+	for i in range(n):
+		response = classifyRandom(model, show=False)
+		print(response)
+
+		if len(response[1]) > 0: # there is a predicted result
+			mx = max(response[1].items(), key=lambda x: x[1])
+
+			if mx[0] in response[0]: # if 'apple' in 'apple/Image_1.png' 
+				correct += 1
+		total += 1
+	
+	print(f"Accuracy: {correct / total * 100}%")
 
