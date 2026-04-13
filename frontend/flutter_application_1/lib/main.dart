@@ -27,6 +27,26 @@ class BarcodeScannerScreen extends StatefulWidget {
 class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
   String barcodeResult = "Point the camera at a barcode";
 
+  final MobileScannerController _controller = MobileScannerController(
+    formats: [
+      BarcodeFormat.ean13,
+      BarcodeFormat.ean8,
+      BarcodeFormat.upcA,
+      BarcodeFormat.upcE,
+      BarcodeFormat.code128,
+      BarcodeFormat.code39,
+      BarcodeFormat.code93,
+      BarcodeFormat.itf14,
+      BarcodeFormat.codabar,
+    ],
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -36,6 +56,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
           Expanded(
             flex: 3,
             child: MobileScanner(
+              controller: _controller,
               onDetect: (BarcodeCapture capture) {
                final List<Barcode> barcodes = capture.barcodes;
                 if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {

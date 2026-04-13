@@ -10,7 +10,7 @@ Expected JSON response schema:
     "items": [
         {
             "name": str,         # Clean product name, e.g. "Baba Ghanouj", "Brawny Paper Towels"
-            "generic_name": str  # Generic type for product e.g. "Dip"
+            "generic_name": str  # Generic type for product e.g. "Dip", "Paper Towels"
             "quantity": int,     # Number of units (default 1)
             "unit_price": float | null,  # Price per unit if detectable
             "total_price": float | null  # Line total if detectable
