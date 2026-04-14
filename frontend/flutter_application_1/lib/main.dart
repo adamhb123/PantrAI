@@ -1,80 +1,58 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'screens/home_screen.dart';
+import 'screens/scan_screen.dart';
 
 void main() {
-  runApp(const BarcodeScannerApp());
+  runApp(const PantrAIApp());
 }
 
-class BarcodeScannerApp extends StatelessWidget {
-  const BarcodeScannerApp({super.key});
+class PantrAIApp extends StatelessWidget {
+  const PantrAIApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
+      title: 'PantrAI',
       debugShowCheckedModeBanner: false,
-      home: BarcodeScannerScreen(),
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
+        useMaterial3: true,
+      ),
+      home: const _MainNavigation(),
     );
   }
 }
 
-class BarcodeScannerScreen extends StatefulWidget {
-  const BarcodeScannerScreen({super.key});
+class _MainNavigation extends StatefulWidget {
+  const _MainNavigation();
 
   @override
-  State<BarcodeScannerScreen> createState() => _BarcodeScannerScreenState();
+  State<_MainNavigation> createState() => _MainNavigationState();
 }
 
-class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
-  String barcodeResult = "Point the camera at a barcode";
-
-  final MobileScannerController _controller = MobileScannerController(
-    formats: [
-      BarcodeFormat.ean13,
-      BarcodeFormat.ean8,
-      BarcodeFormat.upcA,
-      BarcodeFormat.upcE,
-      BarcodeFormat.code128,
-      BarcodeFormat.code39,
-      BarcodeFormat.code93,
-      BarcodeFormat.itf14,
-      BarcodeFormat.codabar,
-    ],
-  );
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+class _MainNavigationState extends State<_MainNavigation> {
+  int _index = 0;
 
   @override
   Widget build(BuildContext context) {
+    // Screens are not cached — switching tabs rebuilds HomeScreen, which
+    // reloads inventory from the db, keeping it always up to date.
+    final screens = const [HomeScreen(), ScanScreen()];
     return Scaffold(
-      appBar: AppBar(title: const Text("Barcode Scanner")),
-      body: Column(
-        children: [
-          Expanded(
-            flex: 3,
-            child: MobileScanner(
-              controller: _controller,
-              onDetect: (BarcodeCapture capture) {
-               final List<Barcode> barcodes = capture.barcodes;
-                if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
-                  setState(() {
-                    barcodeResult = barcodes.first.rawValue!;
-                  });
-                }
-              },
-            ),
+      body: screens[_index],
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _index,
+        onDestinationSelected: (i) => setState(() => _index = i),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.inventory_2_outlined),
+            selectedIcon: Icon(Icons.inventory_2),
+            label: 'Inventory',
           ),
-          Expanded(
-            flex: 1,
-            child: Center(
-              child: Text(
-                barcodeResult,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
+          NavigationDestination(
+            icon: Icon(Icons.camera_alt_outlined),
+            selectedIcon: Icon(Icons.camera_alt),
+            label: 'Scan',
           ),
         ],
       ),
