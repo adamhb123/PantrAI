@@ -1,5 +1,14 @@
 # Build
-docker build -t pantrai-llm backend/llm/
+Note: change path 'backend/llm/' depending on working directory
 
-# Run with a named volume so the model persists across rebuilds
-docker run -p 8080:80 -v pantrai_ollama:/root/.ollama pantrai-llm
+Windows:
+`docker build -t pantrai-llm-win -f Dockerfile.windows backend/llm/`
+Linux:
+`docker build -t pantrai-llm-linux -f Dockerfile backend/llm/`
+
+
+# Run
+Windows:
+`docker run -e NGROK_AUTHTOKEN=<\your_token> -v pantrai_ollama:/root/.ollama pantrai-llm-win`
+Linux:
+`docker run -e NGROK_AUTHTOKEN=<\your_token> -v pantrai_ollama:/root/.ollama pantrai-llm-linux`
