@@ -4,12 +4,15 @@ api.py
 FastAPI server exposing receipt extraction endpoints.
 
 Endpoints:
-  GET  /health              - liveness check
-  POST /extract-receipts    - extract items from one or more base64-encoded receipt images
-  POST /extract-items       - extract items from one or more base64-encoded item images
+  GET  /health                  - liveness check
+  POST /extract-receipts        - extract items from one or more base64-encoded receipt images
+  POST /extract-items           - extract items from one or more base64-encoded item images
+  POST /get-barcode-items       - get items in openfoodfacts db from barcode strings
   """
 
 import base64
+import json as json_lib
+import urllib.request
 import numpy as np
 import cv2
 from typing import List, Optional
@@ -60,6 +63,19 @@ class ExtractResponse(BaseModel):
     results: List[Optional[ReceiptResultOut | ItemResultOut]]
 
 
+class BarcodeRequest(BaseModel):
+    barcodes: List[str]
+
+
+class BarcodeItemOut(BaseModel):
+    barcode: str
+    item_name: Optional[str]
+
+
+class BarcodeResponse(BaseModel):
+    results: List[BarcodeItemOut]
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -78,6 +94,25 @@ def _b64_to_ndarray(b64: str) -> np.ndarray:
         return img
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid image data: {e}")
+
+
+def _lookup_barcode(barcode: str) -> Optional[str]:
+    """Return a product name for a barcode via Open Food Facts, or None."""
+    url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "PantrAI/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json_lib.loads(resp.read().decode())
+        if data.get("status") == 1:
+            product = data["product"]
+            return (
+                product.get("product_name")
+                or product.get("product_name_en")
+                or None
+            )
+        return None
+    except Exception:
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -143,3 +178,12 @@ def extract_items(request: ExtractRequest):
             ))
 
     return ExtractResponse(results=out)
+
+
+@app.post("/get-barcode-items", response_model=BarcodeResponse)
+def get_barcode_items(request: BarcodeRequest) -> BarcodeResponse:
+    results = [
+        BarcodeItemOut(barcode=bc, item_name=_lookup_barcode(bc))
+        for bc in request.barcodes
+    ]
+    return BarcodeResponse(results=results)

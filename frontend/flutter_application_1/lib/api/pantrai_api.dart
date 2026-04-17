@@ -4,8 +4,9 @@ import 'package:http/http.dart' as http;
 import '../constants.dart';
 
 class BarcodeItemResult {
-  final String itemName;
-  BarcodeItemResult({required this.itemName});
+  final String barcode;
+  final String? itemName;
+  BarcodeItemResult({required this.barcode, required this.itemName});
 }
 
 class ExtractedItem {
@@ -29,13 +30,15 @@ class ReceiptResult {
 }
 
 class PantrAIApi {
-  static Future<BarcodeItemResult> getBarcodeItem(String barcode) async {
-    final uri = Uri.parse('$kBackendBaseUrl/get-barcode-item');
+  static Future<List<BarcodeItemResult>> getBarcodeItems(
+    List<String> barcodes,
+  ) async {
+    final uri = Uri.parse('$kBackendBaseUrl/get-barcode-items');
     final response = await http
         .post(
           uri,
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'barcode': barcode}),
+          body: jsonEncode({'barcodes': barcodes}),
         )
         .timeout(kApiTimeout);
 
@@ -44,7 +47,14 @@ class PantrAIApi {
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
-    return BarcodeItemResult(itemName: data['item-name'] as String);
+    final results = data['results'] as List<dynamic>;
+    return results.map((e) {
+      final m = e as Map<String, dynamic>;
+      return BarcodeItemResult(
+        barcode: m['barcode'] as String,
+        itemName: m['item_name'] as String?,
+      );
+    }).toList();
   }
 
   static Future<List<ExtractedItem>> extractItems(File imageFile) async {
@@ -98,7 +108,9 @@ class PantrAIApi {
         .timeout(kApiTimeout);
 
     if (response.statusCode != 200) {
-      throw Exception('Receipt extraction failed (HTTP ${response.statusCode})');
+      throw Exception(
+        'Receipt extraction failed (HTTP ${response.statusCode})',
+      );
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;

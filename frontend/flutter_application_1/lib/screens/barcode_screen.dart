@@ -60,9 +60,13 @@ class _BarcodeScreenState extends State<BarcodeScreen> {
     await _controller.stop();
 
     try {
-      final result = await PantrAIApi.getBarcodeItem(barcode);
+      final results = await PantrAIApi.getBarcodeItems([barcode]);
+      final itemName = results.firstOrNull?.itemName;
+      if (itemName == null || itemName.isEmpty) {
+        throw Exception('Barcode not found in database');
+      }
       setState(() {
-        _itemName = result.itemName;
+        _itemName = itemName;
         _quantity = 1;
         _state = _BarcodeState.confirm;
       });
@@ -79,7 +83,9 @@ class _BarcodeScreenState extends State<BarcodeScreen> {
     await DatabaseHelper.instance.upsertItem(_itemName!, '', _quantity);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Added "$_itemName" (×$_quantity) to inventory')),
+        SnackBar(
+          content: Text('Added "$_itemName" (×$_quantity) to inventory'),
+        ),
       );
       Navigator.pop(context);
     }
@@ -100,7 +106,9 @@ class _BarcodeScreenState extends State<BarcodeScreen> {
       appBar: AppBar(title: const Text('Scan Barcode')),
       body: switch (_state) {
         _BarcodeState.scanning => _buildScanner(),
-        _BarcodeState.loading => const Center(child: CircularProgressIndicator()),
+        _BarcodeState.loading => const Center(
+          child: CircularProgressIndicator(),
+        ),
         _BarcodeState.confirm => _buildConfirm(),
         _BarcodeState.error => _buildError(),
       },
@@ -168,13 +176,17 @@ class _BarcodeScreenState extends State<BarcodeScreen> {
               const SizedBox(width: 16),
               IconButton(
                 icon: const Icon(Icons.remove_circle_outline),
-                onPressed: () => setState(() => _quantity = (_quantity - 1).clamp(1, 999)),
+                onPressed: () =>
+                    setState(() => _quantity = (_quantity - 1).clamp(1, 999)),
               ),
               SizedBox(
                 width: 48,
                 child: Text(
                   '$_quantity',
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ),
