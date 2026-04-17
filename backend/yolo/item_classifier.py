@@ -97,7 +97,7 @@ def classifyRandom(model=None, show=False):
 
 if __name__ == "__main__":
 
-	n = 30
+	n = 300
 	correct = 0
 	total = 0
 
@@ -114,5 +114,5 @@ if __name__ == "__main__":
 				correct += 1
 		total += 1
 	
-	print(f"Accuracy: {correct / total * 100}%")
+	print(f"Accuracy: {correct / total * 100}% ({correct} / {total})")
 
