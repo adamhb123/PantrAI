@@ -6,3 +6,4 @@
 **/*.env
 !**/*.template.env
 **/.claude/*
+**/run-docker.sh
