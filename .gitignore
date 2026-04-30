@@ -6,3 +6,5 @@
 !**/*.template.env
 **/.claude/*
 **/run-docker.sh
+**/en.open*facts.org.products.csv*
+**/barcodes.sqlite*

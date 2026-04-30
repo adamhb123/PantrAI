@@ -1,6 +1,14 @@
 #!/bin/bash
 set -e
 
+# GPU/CPU mode — controlled by USE_GPU env var (default: 1 = GPU)
+if [ "${USE_GPU:-1}" = "0" ]; then
+    echo "CPU mode: disabling GPU for Ollama."
+    export OLLAMA_NUM_GPU=0
+else
+    echo "GPU mode: Ollama will use available CUDA devices."
+fi
+
 # Start Ollama in the background
 ollama serve &
 OLLAMA_PID=$!

@@ -29,7 +29,8 @@ class _BarcodeScreenState extends State<BarcodeScreen> {
   );
 
   _BarcodeState _state = _BarcodeState.scanning;
-  final Map<String, int> _detectionCounts = {};
+  String? _lastDetected;
+  int _consecutiveCount = 0;
   String? _confirmedBarcode;
   String? _itemName;
   String? _errorMessage;
@@ -44,10 +45,15 @@ class _BarcodeScreenState extends State<BarcodeScreen> {
   void _onDetect(BarcodeCapture capture) {
     if (_state != _BarcodeState.scanning) return;
     final value = capture.barcodes.firstOrNull?.rawValue;
-    if (value == null) return;
 
-    _detectionCounts[value] = (_detectionCounts[value] ?? 0) + 1;
-    if (_detectionCounts[value]! >= kBarcodeScanThreshold) {
+    if (value == null || value != _lastDetected) {
+      _lastDetected = value;
+      _consecutiveCount = value == null ? 0 : 1;
+      return;
+    }
+
+    _consecutiveCount++;
+    if (_consecutiveCount >= kBarcodeScanThreshold) {
       _onBarcodeConfirmed(value);
     }
   }
@@ -93,7 +99,8 @@ class _BarcodeScreenState extends State<BarcodeScreen> {
 
   void _retry() {
     setState(() {
-      _detectionCounts.clear();
+      _lastDetected = null;
+      _consecutiveCount = 0;
       _state = _BarcodeState.scanning;
       _errorMessage = null;
     });

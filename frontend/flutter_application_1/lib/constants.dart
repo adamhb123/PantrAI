@@ -2,6 +2,6 @@
 // Change this to your machine's IP when running on a physical device.
 const String kBackendBaseUrl = 'https://pok-unsnared-krystina.ngrok-free.dev';
 
-const int kBarcodeScanThreshold = 10;
+const int kBarcodeScanThreshold = 5;
 
-const Duration kApiTimeout = Duration(seconds: 120);
+const Duration kApiTimeout = Duration(seconds: 2000);

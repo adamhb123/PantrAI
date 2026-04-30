@@ -179,7 +179,6 @@ def extract_items(request: ExtractRequest):
 
     return ExtractResponse(results=out)
 
-
 @app.post("/get-barcode-items", response_model=BarcodeResponse)
 def get_barcode_items(request: BarcodeRequest) -> BarcodeResponse:
     results = [

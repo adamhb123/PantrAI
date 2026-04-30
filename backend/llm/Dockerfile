@@ -1,4 +1,16 @@
-FROM nvidia/cuda:12.8.0-runtime-ubuntu24.04
+# GPU=1 (default) → CUDA base; GPU=0 → plain Ubuntu (CPU-only)
+# CUDA_IMAGE is auto-detected by run.sh; override manually if needed.
+ARG GPU=1
+ARG CUDA_IMAGE=nvidia/cuda:12.8.0-runtime-ubuntu24.04
+FROM ${CUDA_IMAGE} AS base-1
+FROM ubuntu:24.04 AS base-0
+FROM base-${GPU}
+
+# Propagate build args past the FROM so ENV can consume them
+ARG GPU=1
+ARG CUDA_IMAGE=nvidia/cuda:12.8.0-runtime-ubuntu24.04
+ENV USE_GPU=${GPU}
+ENV CUDA_IMAGE=${CUDA_IMAGE}
 
 # Install Python 3.12 + system dependencies
 # Ubuntu 24.04 ships Python 3.12 natively — no PPA needed
@@ -46,15 +58,26 @@ RUN chmod +x /entrypoint.sh
 # Ollama model storage — mount a named volume here to persist models across
 # container rebuilds.
 #
-# Requires NVIDIA Container Toolkit on the host.
-#
+# GPU build (default — requires NVIDIA Container Toolkit on the host):
+#   docker build -t pantrai-llm .
 #   docker run -d --name pantrai-llm --restart always \
-#     --gpus all \
-#     --shm-size=8g \
+#     --gpus all --shm-size=8g \
 #     -e NGROK_AUTHTOKEN=<your_token> \
 #     -e NGROK_DOMAIN=<your_static_domain> \
 #     -v pantrai_ollama:/root/.ollama \
 #     pantrai-llm
+#
+# CPU build (no CUDA required):
+#   docker build --build-arg GPU=0 -t pantrai-llm-cpu .
+#   docker run -d --name pantrai-llm --restart always \
+#     --shm-size=8g \
+#     -e NGROK_AUTHTOKEN=<your_token> \
+#     -e NGROK_DOMAIN=<your_static_domain> \
+#     -v pantrai_ollama:/root/.ollama \
+#     pantrai-llm-cpu
+#
+# Override at runtime without rebuilding (forces CPU on a GPU image):
+#   docker run ... -e USE_GPU=0 pantrai-llm
 VOLUME ["/root/.ollama"]
 
 EXPOSE 8000
