@@ -1,13 +1,22 @@
 from ultralytics import YOLOWorld
+import torch
 import os
 import random
 
 
+'''
 
-def getModel(model="yolov8s-world.pt"):
-	
-	model = YOLOWorld("backend/yolo/" + model)
+This involves manually training the model, rather than using a pre-trained set.
+	It still needs the labels on the data in order to function, which appears to
+	be a very manual process.
 
+
+'''
+
+
+
+
+def getClasses():
 	classes = [
 	"other",
 
@@ -57,62 +66,30 @@ def getModel(model="yolov8s-world.pt"):
 	"cake","chocolate cake","cheesecake",
 	"donut","cookies","brownie","pie","pizza","lasagna"]
 
-	model.set_classes(classes)
+	return classes
 
-	# YOLO-E
-	#embeddings = model.get_text_pe(classes)
-	#model.set_classes(classes, embeddings)
+
+def getModel(model="yolov8s-worldv2.pt"):
+	
+	model = YOLOWorld("backend/yolo/" + model)
+	model.set_classes(getClasses())
 
 	return model
 
 
-def classifyItem(path="img/apple.png", model=None, show=False):
+def trainModel(model):
 	
-	results = model.predict(path)
-	if show:
-		results[0].show()
-	predicted = {}
+	epoch_count = 10
+	device = 1 if torch.cuda.is_available() else 'cpu'
 
-	for result in results:
-
-		probabilities = result.boxes.conf
-		labels = result.boxes.cls
-
-		for i in range(len(probabilities)):
-			name = model.names[labels[i].item()]
-			predicted[name] = probabilities[i].item()
-
-	return (path, predicted)
-
-
-def classifyRandom(model=None, show=False):
-	dir = random.choice(os.listdir("img"))
-	img = random.choice(os.listdir(f"img/{dir}"))
-
-	path = f"img/{dir}/{img}"
-	return classifyItem(path, model=model, show=show)
+	# Missing labels -- errors
+	results = model.train(data="data.yaml", optimizer="auto", epochs=epoch_count, imgsz=100, device=device)
+	return results
 
 
 
 
 if __name__ == "__main__":
 
-	n = 300
-	correct = 0
-	total = 0
-
-	list_models = ['yolov8l-world.pt', 'yolov8s-worldv2.pt', 'yoloe-26l-seg.pt']
-	model = getModel(list_models[0])
-	for i in range(n):
-		response = classifyRandom(model, show=False)
-		print(response)
-
-		if len(response[1]) > 0: # there is a predicted result
-			mx = max(response[1].items(), key=lambda x: x[1])
-
-			if mx[0] in response[0]: # if 'apple' in 'apple/Image_1.png' 
-				correct += 1
-		total += 1
-	
-	print(f"Accuracy: {correct / total * 100}% ({correct} / {total})")
-
+	model = getModel()
+	results = trainModel(model)

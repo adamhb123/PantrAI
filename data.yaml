@@ -1,0 +1,154 @@
+path: dataset
+train: new/Training/Apple 5
+val: new/Training/Apple 6
+names:
+  0: other
+  1: apple
+  2: banana
+  3: orange
+  4: lemon
+  5: lime
+  6: grapefruit
+  7: strawberry
+  8: blueberry
+  9: raspberry
+  10: blackberry
+  11: grape
+  12: watermelon
+  13: cantaloupe
+  14: honeydew
+  15: pineapple
+  16: mango
+  17: papaya
+  18: kiwi
+  19: peach
+  20: nectarine
+  21: plum
+  22: cherry
+  23: pear
+  24: pomegranate
+  25: fig
+  26: coconut
+  27: avocado
+  28: dragon fruit
+  29: passion fruit
+  30: guava
+  31: lychee
+  32: jackfruit
+  33: durian
+  34: persimmon
+  35: starfruit
+  36: carrot
+  37: broccoli
+  38: cauliflower
+  39: spinach
+  40: lettuce
+  41: kale
+  42: cabbage
+  43: brussels sprouts
+  44: asparagus
+  45: zucchini
+  46: cucumber
+  47: eggplant
+  48: bell pepper
+  49: jalepeno
+  50: chili pepper
+  51: onion
+  52: garlic
+  53: potato
+  54: sweet potato
+  55: tomato
+  56: corn
+  57: peas
+  58: green beans
+  59: mushroom
+  60: raddish
+  61: beet
+  62: radish
+  63: turnip
+  64: parsnip
+  65: leek
+  66: bok choy
+  67: ginger
+  68: celery
+  69: artichoke
+  70: arugula
+  71: okra
+  72: pumpkin
+  73: squash
+  74: chicken
+  75: fried chicken
+  76: beef
+  77: ground beef
+  78: pork chop
+  79: bacon
+  80: ham
+  81: sausage
+  82: lamb chop
+  83: turkey
+  84: duck
+  85: salmon
+  86: tuna
+  87: shrimp
+  88: crab
+  89: lobster
+  90: egg
+  91: fried egg
+  92: boiled egg
+  93: scrambled egg
+  94: tofu
+  95: tempeh
+  96: lentils
+  97: chickpeas
+  98: black beans
+  99: bread
+  100: bagel
+  101: croissant
+  102: rice
+  103: white rice
+  104: brown rice
+  105: fried rice
+  106: pasta
+  107: spaghetti
+  108: macaroni
+  109: noodles
+  110: ramen
+  111: quinoa
+  112: oats
+  113: oatmeal
+  114: cereal
+  115: granola
+  116: tortilla
+  117: pizza
+  118: milk
+  119: cheese
+  120: butter
+  121: yogurt
+  122: ice cream
+  123: almond milk
+  124: soy milk
+  125: oat milk
+  126: salad
+  127: sandwich
+  128: burger
+  129: cheeseburger
+  130: hot dog
+  131: taco
+  132: burrito
+  133: quesadilla
+  134: sushi
+  135: soup
+  136: stew
+  137: curry
+  138: pancakes
+  139: waffles
+  140: french toast
+  141: cake
+  142: chocolate cake
+  143: cheesecake
+  144: donut
+  145: cookies
+  146: brownie
+  147: pie
+  148: pizza
+  149: lasagna
